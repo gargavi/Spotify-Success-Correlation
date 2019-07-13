@@ -260,6 +260,7 @@ def slow_top_artists(genre, starting_artist, n, sp):
             del long_dict[key]
     return long_dict
 
+#new info 
 #creat a combined metric for 'popularity' including the followers and the popularity instead of just one or the other
 
 ###############################DATA VISUALIZATION FUNCTIONS##############################
