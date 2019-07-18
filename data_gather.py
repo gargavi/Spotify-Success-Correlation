@@ -70,14 +70,17 @@ def get_total_data(artist_id, sp, standard = True):
         prime_function = album_song_pop
 
     for item in artist_disc.items():
-        z_dict = prime_function(item[1], sp)
-        temp_dict = tempo_album(item[1], sp)
-        compress_dict = album_value_compress(item[1], sp, genius_TOKEN)
-        songs_dict = get_album_songs(item[1], sp)
-        song_data_dict = {}
-        for song in songs_dict.keys():
-            song_data_dict[song[:20]] = get_data(song, [z_dict, temp_dict, compress_dict])
-        total_artist_data[item[0]] = song_data_dict
+        try:
+            z_dict = prime_function(item[1], sp)
+            temp_dict = tempo_album(item[1], sp)
+            compress_dict = album_value_compress(item[1], sp, genius_TOKEN)
+            songs_dict = get_album_songs(item[1], sp)
+            song_data_dict = {}
+            for song in songs_dict.keys():
+                song_data_dict[song[:20]] = get_data(song, [z_dict, temp_dict, compress_dict])
+            total_artist_data[item[0]] = song_data_dict
+        except:
+            print("no good")
     return total_artist_data
 
 #dictionary for popular (not necessarily the top artists for a particular genre
@@ -88,7 +91,7 @@ failure_list = {}
 def complete_sql_gather(genre, sp):
     #get all the relevant artists
     print(genre + ' started at time ' + str(time.time() - t_start))
-    top_artist_dic = slow_top_artists(genre, genre_dict[genre], 10, sp)
+    top_artist_dic = slow_top_artists(genre, genre_dict[genre], 15, sp)
     # all the important information to create the SQL connections
     #creating the connection
     conn = psql.connect(host=host, user=user, password=password)
@@ -101,7 +104,7 @@ def complete_sql_gather(genre, sp):
         t_begin = time.time()
         sp1 = generate_host()
         print(artist)
-        database = artist.replace(' ', '_').replace('.', '').lower()
+        database = artist.replace(' ', '_').replace('.', '').replace("-", "_").replace("&", "_").replace("!", "").lower()
         connection = alch.create_engine("mysql+pymysql://" + user + ':' + password + '@localhost/' + database)
         try:
             cursor.execute("USE " + database)
@@ -182,5 +185,3 @@ print(len(failure_list))
 
 print(time.time() - t_start)
 
-#send_to_sql('spotify:artist:73sIBHcqh3Z3NyqHKZ7FOL')
-#get_correlation('spotify:artist:73sIBHcqh3Z3NyqHKZ7FOL')
