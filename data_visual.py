@@ -16,23 +16,15 @@ for key in small_genre_dict.keys():
     pandas_dataframes[key] = [album_df, artist_database]
 
 #this section deals with plotting the total genre's in one entire section
-    #make the two elements, two subplots instead of two figures
 
-plt.figure(figsize=(10.0, 10.0))
-
-plt.figure(2, figsize=(10.0, 10.0))
+fig, axes  = plt.subplots(2, 1, figsize= (15.0, 10.0), sharex = True)
 
 for title, df_list in pandas_dataframes.items():
-    plt.figure(1)
-    plt.plot(df_list[0]["success"], df_list[0]["lyrics"], ".")
-    plt.figure(2)
-    plt.plot(df_list[0]["success"], df_list[0]["tempo"], ".")
+    axes[0].scatter(df_list[0]["success"], df_list[0]["lyrics"])
+    axes[1].scatter(df_list[0]["success"], df_list[0]["tempo"])
 
-plt.figure(1)
-plt.legend(labels= pandas_dataframes.keys(), loc = "upper right")
 
-plt.figure(2)
-plt.legend(labels= pandas_dataframes.keys() ,loc="upper right")
+fig.legend(labels = pandas_dataframes.keys())
 
 
 
