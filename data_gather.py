@@ -28,7 +28,7 @@ genius_TOKEN  = 'VUhhrz0alO59FDXN_L86yRgzkZupQuLBOfwj5xiJYxEXfqsi7dP_7pPaFgPH2X0
 scope = 'playlist-read-private'
 
 
-
+#this function generates a Spotipy Instance via the token method 
 def generate_host():
     token = util.prompt_for_user_token(username, scope, CLIENT_ID, CLIENT_SECRET, redirect_uri)
     if token:
@@ -40,15 +40,17 @@ def generate_host():
 
 client_credentials_manager = SpotifyClientCredentials(CLIENT_ID, CLIENT_SECRET)
 
-
+#this method generates a Spotipy Instance using a client credentials method -> Doesn't allow user specific access 
 def generate_host():
     sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
     print('Generated a Spotify Class Instance')
     return sp
 
-
+#generate the first instance of a spotify variable
 sp = generate_host()
 
+#this take a list of dictionaries and a key and finds all the data in the dicionaries that contain that key and return a list 
+#containing all of them 
 def get_data(key, dictionaries):
     data_comb = []
     for dict in dictionaries:
@@ -62,6 +64,10 @@ def get_data(key, dictionaries):
 def get_total_data(artist_id, sp, standard = True):
     #returns a dictionary with the name of the album as a key and a value which is
     ## a dictionary containing each song in the album as a key and the value is a list of z-score, tempo and compression
+    #parameters:
+        #artist_id = the spotify uri id of an artist
+        #sp = a spotipy instance 
+        #standard = whether or not we want to success function to be standardized by album or not 
     artist_disc = get_album_dicography(artist_id, sp)
     total_artist_data = {}
     if standard == True:
@@ -70,99 +76,116 @@ def get_total_data(artist_id, sp, standard = True):
         prime_function = album_song_pop
 
     for item in artist_disc.items():
-        try:
-            z_dict = prime_function(item[1], sp)
-            temp_dict = tempo_album(item[1], sp)
-            compress_dict = album_value_compress(item[1], sp, genius_TOKEN)
-            songs_dict = get_album_songs(item[1], sp)
-            song_data_dict = {}
-            for song in songs_dict.keys():
-                song_data_dict[song[:20]] = get_data(song, [z_dict, temp_dict, compress_dict])
-            total_artist_data[item[0]] = song_data_dict
-        except:
-            print("no good")
+        z_dict = prime_function(item[1], sp)
+        temp_dict = tempo_album(item[1], sp)
+        compress_dict = album_value_compress(item[1], sp, genius_TOKEN)
+        songs_dict = get_album_songs(item[1], sp)
+        song_data_dict = {}
+        for song in songs_dict.keys():
+            song_data_dict[song[:20]] = get_data(song, [z_dict, temp_dict, compress_dict])
+        total_artist_data[item[0]] = song_data_dict
     return total_artist_data
 
-#dictionary for popular (not necessarily the top artists for a particular genre
+#create a table in genre of every single artist and their albums and use that to iterate
 
-
-
+#failure list records all the failures we encounter in the complete_sql_gather iterations 
 failure_list = {}
+#this helps us to avoid redundancy when iterating over a lot of artists if there is overlap between different genres 
+all_artist_albums = {}
+
 def complete_sql_gather(genre, sp):
-    #get all the relevant artists
+    t_start = time.time()
     print(genre + ' started at time ' + str(time.time() - t_start))
-    top_artist_dic = slow_top_artists(genre, genre_dict[genre], 15, sp)
-    # all the important information to create the SQL connections
-    #creating the connection
-    conn = psql.connect(host=host, user=user, password=password)
+    top_artist_dic = slow_top_artists(genre, genre_dict[genre], 15, sp) # all the important information to create the SQL connections
+    conn = psql.connect(host=host, user=user, password=password) #creating the connection
     cursor = conn.cursor()
-    #whole - dataframe that'll act as the complete genre dataframe
-    whole = pd.DataFrame()
-    #artist_album_dict - creates in index table
+    large_connection = alch.create_engine("mysql+pymysql://" + user + ':' + password + '@localhost/genre')
+    whole = pd.DataFrame() #whole - dataframe that'll act as the complete genre dataframe
     artist_album_dict = {}
-    for artist, list2 in top_artist_dic.items():
+    try:
+        all_artist_albums_temp = pd.read_sql_table("all_artist_info", large_connection, index_col="Artist").to_dict('index')
+        all_artist_albums= {}
+        for key, value in all_artist_albums_temp.items():
+            all_artist_albums[key] = value.values()
+    except Exception as e:
+        print(str(e))
+        all_artist_albums ={}
+    for artist, list2 in top_artist_dic.items(): #we iterate over all the different artists
         t_begin = time.time()
-        sp1 = generate_host()
+        sp1 = generate_host() #generate another spotipy instance
         print(artist)
-        database = artist.replace(' ', '_').replace('.', '').replace("-", "_").replace("&", "_").replace("!", "").lower()
+        album_list = []
+        database = artist.replace(' ', '_').replace('.', '').replace("-", "_").replace("&", "_").replace("!", "").lower()  #clean up the title as per SQL standards
         connection = alch.create_engine("mysql+pymysql://" + user + ':' + password + '@localhost/' + database)
-        try:
-            cursor.execute("USE " + database)
-            print("Database Already Existed: Adding Artist Discography to Genre")
-            discography = get_album_dicography(list2[0], sp)
-            disc_list = list(discography.keys())
-            artist_album_dict[database] = disc_list
-            for i in range(len(disc_list)):
+            #create a connection to the database (doesn't actually check to see if database exists until we call it)
+        if database in all_artist_albums:
+            print("Database Already Completed: Adding Artist Discography to Genre")
+            disc_list = [val for val in all_artist_albums[database] if str(val) != "NULL"]# get the names of all the albums
+            artist_album_dict[database] = disc_list #creates a dictionary entry local only to the genre for the index table
+            for i in range(len(disc_list)): #iterate through the list and read each corresponding table
                 try:
-                    album_df = pd.read_sql_table(database + str(i + 1), connection, index_col='Song')
-                    album_df.index.name = 'Song'
-                    whole = pd.concat([whole, album_df], axis=0, sort=False)
+                    album_df = pd.read_sql_table(database + str(i + 1), connection, index_col='Song') #read the sql table
+                    album_df.index.name = 'Song' # set the index column
+                    whole = pd.concat([whole, album_df], axis=0, sort=False) #append the album to the complete data album
                     print('               ' + 'album' +str(i) +': Succeeded ')
                 except Exception as e:
                     print("No more Albums recorded for this artist")
                     failure_list[disc_list[i]] = e
-        except:
-            print("Database Doesn't Exist Yet: Creating Artist Database")
-            cursor.execute("CREATE DATABASE IF NOT EXISTS " + database)
-            number = 1
-            artist_data = get_total_data(list2[0], sp1, False)
-            artist_album_dict[database] = list(artist_data.keys())
-            print(artist_data.keys())
-            winsound.Beep(frequency, duration)
-            for album, data in artist_data.items():
-                try:
-                    answer = input("Should we include " + album + " ? ")
-                    table_name = database + str(number)
-                    if answer.lower() == "y":
-                        album_df = pd.DataFrame.from_dict(data, orient='index', columns=['success', 'tempo', 'lyrics'])
-                        album_df.index.name = 'Song'
-                        whole = pd.concat([whole, album_df], axis=0, sort=False)
-                        album_df.to_sql(table_name, connection, if_exists='replace', dtype={'Song': VARCHAR(25)})
-                        if number == 1:
-                            album_df.to_sql('complete', connection, if_exists='replace', dtype={'Song': VARCHAR(25)})
+        else:
+            try:
+                artist_data = get_total_data(list2[0], sp1, False) # get all the information about the artist
+                cursor.execute("CREATE DATABASE IF NOT EXISTS " + database)
+                number = 1
+                print(artist_data.keys()) #print out the names of all the albums to see if it worth to include them
+                winsound.Beep(frequency, duration)
+                for album, data in artist_data.items():
+                    try:
+                        answer = input("Should we include " + album + " ? ") #ask whether or not we should include album in analysis
+                        table_name = database + str(number)
+                        if answer.lower() == "y":
+                            album_df = pd.DataFrame.from_dict(data, orient='index', columns=['success', 'tempo', 'lyrics']) # create dataframe
+                            album_df.index.name = 'Song'
+                            whole = pd.concat([whole, album_df], axis=0, sort=False) #add dataframe to the whole genre dataframe
+                            album_df.to_sql(table_name, connection, if_exists='replace', dtype={'Song': VARCHAR(25)}) # sed the info
+                            if number == 1:
+                                album_df.to_sql('complete', connection, if_exists='replace', dtype={'Song': VARCHAR(25)}) # start artist complete table
+                            else:
+                                album_df.to_sql('complete', connection, if_exists='append', dtype={'Song': VARCHAR(25)}) #extend artist complete table
+                            album_list.append(table_name) #append the name of the album
+                            number += 1
+                            print('               ' + album + ': Succeeded ')
                         else:
-                            album_df.to_sql('complete', connection, if_exists='append', dtype={'Song': VARCHAR(25)})
-                        number += 1
-                        print('               ' + album + ': Succeeded ')
-                    else:
-                        print("Album Rejected For Inclusion")
-                except Exception as e:
-                    print('               ' + album + ': Failed')
-                    failure_list[album] = e
+                            print("Album Rejected For Inclusion")
+                    except Exception as e:
+                        print('               ' + album + ': Failed')
+                        failure_list[album] = e
+            except Exception as e:
+                winsound.Beep(frequency, duration)
+                print("Collection of " + database + "Information Failed because " + str(e) )
+            all_artist_albums[database] = album_list
+            artist_album_dict[database] = album_list
+
         print('Completed in: ' + str( time.time() - t_begin))
         #album_df.index.get_level_values('Song').str.len().max()
-    large_connection = alch.create_engine("mysql+pymysql://" + user + ':' + password + '@localhost/genre')
     concat_genre = genre.replace(" ", "_")
     whole.to_sql(str(concat_genre), large_connection, if_exists='replace', dtype={'Song': VARCHAR(25)})
     a = max([len(val) for val in artist_album_dict.values()])
     for vals in artist_album_dict.values():
+        print(vals)
+        print(type(vals))
         while len(vals) < a:
             vals.append('NULL')
+    b = max([len(val) for val in all_artist_albums.values()])
 
-    columns2 = ['album'+str(b)  for b in range(1, a+1)]
+
+    columns2 = ['album'+str(num)  for num in range(1, a+1)]
     artist_album_df = pd.DataFrame.from_dict(artist_album_dict, orient = 'index', columns = columns2 )
     artist_album_df.index.name = 'Artist'
     artist_album_df.to_sql(str(concat_genre) + '_artists', large_connection, if_exists = 'replace', dtype ={'Artist': VARCHAR(artist_album_df.index.get_level_values('Artist').str.len().max())})
+    columns3 = ["album" +str(num) for num in range(1, b+1)]
+    all_artist_albums_df = pd.DataFrame.from_dict(all_artist_albums, orient='index', columns = columns3)
+    all_artist_albums_df.index.name="Artist"
+    all_artist_albums_df.to_sql("all_artist_info", large_connection, if_exists='replace', dtype={"Artist": VARCHAR(all_artist_albums_df.index.get_level_values("Artist").str.len().max())})
     print(genre + ' completed in ' + str(time.time() - t_start))
 
 

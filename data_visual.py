@@ -31,7 +31,7 @@ axes[1].title.set_text("Lyrics")
 fig.suptitle("Genre Comparison")
 
 #next step is that we want to compare each genre to the artists complete inside of it
-    #theoretically should be a 4 X 4 figure with 15 artist plots and 1 genre plot
+    #need to add colors, axis labels, bigger font titles, making it generally more attractive looking graphs
 
 for genre, df_list in pandas_dataframes.items():
     x_coor = 0
@@ -60,10 +60,24 @@ for genre, df_list in pandas_dataframes.items():
             print(index + " failed because " + str(e))
         lyric_axes.title.set_text(index.replace("_", " "))
         success_axes.title.set_text(index.replace("_", " "))
-    
+
     lyr_fig.suptitle("Lyrical Comparsion for " + genre)
     suc_fig.suptitle("Tempo Comparsion for " + genre)
 
+for genre, df_list in pandas_dataframes.items():
+    #first need to get each artist and then get each album they have and create a corresponding subplot axis list for it
+    subplot_dict = {'1': [1, 1], '2': [1, 2], '3': [1,3], '4': [2, 2], '5': [2, 3], '6': [2,3], '7': [2,4], '8': [2,4], '9': [3,3],
+                    '10': [2,5], '11':[3,4], '12': [3,4]}
+    for artist_name, row in df_list[1].iterrows():
+        artist_connect = alch.create_enginer("mysql+pymysql://" + user + ":" + password + "@localhost/" + index)
+        size = subplot_dict[str(len(row) + 1)]
+        artist_fig, artist_axes = plt.subplots(size[0], size[1], figsize = (20.0, 10.0), sharex = True, sharey= True)
+        for entry in ["complete"] + row:
+            album =
+
+
+
+#create a color list to interate over when filling up the colors of a particular figure
 
 plt.show()
 

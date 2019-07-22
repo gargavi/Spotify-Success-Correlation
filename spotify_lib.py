@@ -1,18 +1,7 @@
-
 import numpy as np
 import requests
 from bs4 import BeautifulSoup
 #credit to Will Soares for online API code for GENIUS
-import json
-import pandas as pd
-
-
-
-#PARAMETERS
-
-
-#get all the albums that an artist has worked on (need to limit it to albums)
-
 
 def get_popularity(track_id, sp):
     #gets popularity of a single song given its track_id and an spotipy object
@@ -241,10 +230,11 @@ def quick_get_top_artists(genre, starting_artist, min_pop, min_follow, n, sp, id
                 artist_dict[sp.artist(artist)['name']] = sp.artist(artist)['id']
             else:
                 artist_dict[sp.artist(artist)['name']] = sp.artist(artist)['popularity']
-            for artist in sp.artist_related_artists(artist)['artists']:
-                if artist['name'] not in artist_dict and genre in artist['genres'] and (
-                        artist['popularity'] > min_pop or artist['followers']['total'] > min_follow):
-                    helper_func(artist['uri'])
+            related = sp.artist_related_artists(artist)
+            for new_artist in related['artists']:
+                if new_artist['name'] not in artist_dict and genre in new_artist['genres'] and (
+                        new_artist['popularity'] > min_pop or new_artist['followers']['total'] > min_follow):
+                    helper_func(new_artist['uri'])
     helper_func(starting_artist)
     return artist_dict
 
@@ -254,14 +244,15 @@ def slow_top_artists(genre, starting_artist, n, sp):
         #return quick_get_top_artists(genre, starting_artist, 0, 0, n, sp)
     long_dict = quick_get_top_artists(genre, starting_artist, 0, 0, 1000, sp)
     long_dict2 = dict(long_dict)
+    for key, value in long_dict2.items():
+        if type(value[1]) != int:
+            del long_dict[key]
     top_artist = list(reversed(sorted(long_dict, key = lambda x: long_dict[x][1])))[:n]
     for key in long_dict2.keys():
-        if key not in top_artist:
+        if key not in top_artist and key in long_dict:
             del long_dict[key]
     return long_dict
 
-#new info
-#creat a combined metric for 'popularity' including the followers and the popularity instead of just one or the other
 
 ###############################DATA VISUALIZATION FUNCTIONS##############################
 
